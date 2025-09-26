@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Analítica del Aprendizaje</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Academic Calm -->
+    <!-- Application Structure Plan: Se ha diseñado un dashboard de una sola página con un enfoque de arriba hacia abajo. La parte superior presenta KPIs y una vista general del curso para un diagnóstico rápido. La sección principal se divide en una lista de estudiantes interactiva a la izquierda y un área de visualización detallada a la derecha. Este diseño guía al usuario (docente) desde una vista macro (la salud de la clase) a una micro (el perfil de un estudiante específico), facilitando un flujo de trabajo lógico: identificar un problema general, localizar a los individuos afectados y analizar sus datos para planificar una intervención. Esta estructura se eligió por su familiaridad en herramientas de análisis y su eficiencia para la toma de decisiones informadas. -->
+    <!-- Visualization & Content Choices: 
+        1. KPIs (HTML/CSS): Informar sobre el estado general. Interacción: ninguna. Justificación: Proporciona un resumen inmediato y vital.
+        2. Gráfico de Donut (Distribución de Riesgo - Chart.js): Informar proporciones. Interacción: hover. Justificación: Ideal para mostrar la composición de un todo (la clase) en categorías de riesgo.
+        3. Tabla de Estudiantes (HTML/JS): Organizar y Navegar. Interacción: clic para seleccionar, botones para ordenar. Justificación: Es el control principal para filtrar y explorar los datos a nivel individual.
+        4. Gráfico de Líneas (Tendencia Semanal - Chart.js): Mostrar cambio en el tiempo. Interacción: dinámico, se actualiza al seleccionar estudiante. Justificación: Perfecto para visualizar la evolución del comportamiento y el impacto de intervenciones.
+        5. Gráfico de Radar (Comparativa vs. Promedio - Chart.js): Comparar múltiples variables. Interacción: dinámico, se actualiza al seleccionar estudiante. Justificación: Ofrece una visión rápida de las fortalezas y debilidades de un estudiante frente al grupo.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #F5F5F4; 
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 320px;
+            }
+        }
+        .student-list-item:hover {
+            background-color: #E7E5E4;
+        }
+        .student-list-item.selected {
+            background-color: #D6D3D1;
+            border-left: 4px solid #0891B2;
+        }
+    </style>
+</head>
+<body class="text-stone-800">
+
+    <div class="container mx-auto p-4 md:p-6 lg:p-8">
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-stone-900">Dashboard de Analítica del Aprendizaje</h1>
+            <p class="text-stone-600 mt-1">Curso: Introducción a la Programación - Semana 5</p>
+        </header>
+
+        <main>
+            <!-- Sección de Vista General -->
+            <section id="overview" class="mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                        <h3 class="font-semibold text-stone-500">Total de Estudiantes</h3>
+                        <p id="total-students" class="text-4xl font-bold mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                        <h3 class="font-semibold text-stone-500">Estudiantes en Riesgo Alto</h3>
+                        <p id="high-risk-students" class="text-4xl font-bold text-red-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                        <h3 class="font-semibold text-stone-500">Compromiso Promedio</h3>
+                        <p id="avg-engagement" class="text-4xl font-bold mt-2">0%</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                        <h3 class="font-semibold text-stone-500">Calificación Promedio</h3>
+                        <p id="avg-grade" class="text-4xl font-bold mt-2">0.0</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección de Análisis Detallado -->
+            <section id="detailed-analysis" class="bg-white p-6 rounded-xl shadow-sm">
+                 <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-stone-900">Análisis Detallado</h2>
+                    <p class="text-stone-600 mt-1">Esta sección permite explorar los datos a nivel de curso y de estudiante individual. Utiliza la lista de la izquierda para seleccionar un estudiante y ver sus métricas detalladas a la derecha. Esto te ayudará a identificar patrones de comportamiento y a planificar intervenciones pedagógicas informadas.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Columna Izquierda: Lista de Estudiantes -->
+                    <div class="lg:col-span-1 bg-stone-50 p-4 rounded-lg h-[600px] flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg">Lista de Estudiantes</h3>
+                            <div class="flex items-center space-x-2">
+                                <button id="sort-asc" class="p-1 rounded-md hover:bg-stone-200" title="Ordenar Ascendente">
+                                    <span class="text-xl">↑</span>
+                                </button>
+                                <button id="sort-desc" class="p-1 rounded-md hover:bg-stone-200" title="Ordenar Descendente">
+                                    <span class="text-xl">↓</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="student-list" class="overflow-y-auto flex-grow">
+                            <!-- Estudiantes se insertan aquí vía JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Columna Derecha: Visualizaciones del Estudiante -->
+                    <div class="lg:col-span-2">
+                        <div id="student-detail-view" class="space-y-6">
+                             <div class="text-center p-8 bg-stone-50 rounded-lg">
+                                <p class="text-stone-500">Selecciona un estudiante de la lista para ver sus detalles.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const studentData = [
+        { id: 1001, name: "Ana Torres", riskScore: 0.15, selfRegulation: 4.2, weeklyData: { w1: { logins: 10, time: 8, posts: 3, grade: 9.0, risk: 0.18 }, w2: { logins: 11, time: 7.5, posts: 4, grade: 9.2, risk: 0.16 }, w3: { logins: 13, time: 9, posts: 5, grade: 9.5, risk: 0.14 }, w4: { logins: 10, time: 8.2, posts: 3, grade: 9.8, risk: 0.12 }, w5: { logins: 12, time: 8.5, posts: 4, grade: 9.5, risk: 0.15 } } },
+        { id: 1002, name: "Luis Vega", riskScore: 0.82, selfRegulation: 3.1, weeklyData: { w1: { logins: 8, time: 5, posts: 2, grade: 7.5, risk: 0.40 }, w2: { logins: 7, time: 4, posts: 1, grade: 7.0, risk: 0.55 }, w3: { logins: 4, time: 2, posts: 0, grade: 6.0, risk: 0.70 }, w4: { logins: 2, time: 1.5, posts: 0, grade: null, risk: 0.78 }, w5: { logins: 3, time: 1.2, posts: 0, grade: null, risk: 0.82 } } },
+        { id: 1003, name: "Carla Mora", riskScore: 0.65, selfRegulation: 3.8, weeklyData: { w1: { logins: 9, time: 6, posts: 2, grade: 8.0, risk: 0.35 }, w2: { logins: 8, time: 5.5, posts: 2, grade: 7.5, risk: 0.45 }, w3: { logins: 6, time: 4, posts: 1, grade: 7.0, risk: 0.58 }, w4: { logins: 5, time: 3.5, posts: 1, grade: 6.5, risk: 0.62 }, w5: { logins: 7, time: 4.1, posts: 1, grade: 6.2, risk: 0.65 } } },
+        { id: 1004, name: "David Ríos", riskScore: 0.25, selfRegulation: 4.0, weeklyData: { w1: { logins: 11, time: 7, posts: 3, grade: 8.8, risk: 0.22 }, w2: { logins: 10, time: 6.8, posts: 2, grade: 8.5, risk: 0.24 }, w3: { logins: 12, time: 7.5, posts: 3, grade: 9.0, risk: 0.20 }, w4: { logins: 9, time: 6.5, posts: 2, grade: 8.7, risk: 0.26 }, w5: { logins: 10, time: 7.2, posts: 3, grade: 8.9, risk: 0.25 } } },
+        { id: 1005, name: "Elena Solís", riskScore: 0.91, selfRegulation: 2.5, weeklyData: { w1: { logins: 6, time: 3, posts: 1, grade: 6.0, risk: 0.60 }, w2: { logins: 4, time: 2, posts: 0, grade: 5.5, risk: 0.75 }, w3: { logins: 2, time: 1, posts: 0, grade: 5.0, risk: 0.85 }, w4: { logins: 1, time: 0.5, posts: 0, grade: null, risk: 0.90 }, w5: { logins: 1, time: 0.8, posts: 0, grade: null, risk: 0.91 } } },
+        { id: 1006, name: "Marco Peña", riskScore: 0.42, selfRegulation: 3.9, weeklyData: { w1: { logins: 8, time: 6, posts: 1, grade: 8.2, risk: 0.38 }, w2: { logins: 7, time: 5.8, posts: 2, grade: 8.0, risk: 0.40 }, w3: { logins: 9, time: 6.5, posts: 2, grade: 7.8, risk: 0.41 }, w4: { logins: 6, time: 5.0, posts: 1, grade: 7.5, risk: 0.45 }, w5: { logins: 7, time: 5.5, posts: 2, grade: 7.6, risk: 0.42 } } },
+        { id: 1007, name: "Sofia Castro", riskScore: 0.08, selfRegulation: 4.8, weeklyData: { w1: { logins: 14, time: 10, posts: 5, grade: 9.8, risk: 0.10 }, w2: { logins: 15, time: 11, posts: 6, grade: 9.9, risk: 0.09 }, w3: { logins: 13, time: 9.5, posts: 4, grade: 10, risk: 0.08 }, w4: { logins: 16, time: 12, posts: 7, grade: 10, risk: 0.07 }, w5: { logins: 14, time: 10.5, posts: 5, grade: 10, risk: 0.08 } } },
+        { id: 1008, name: "Jorge Nunes", riskScore: 0.71, selfRegulation: 3.3, weeklyData: { w1: { logins: 7, time: 4, posts: 1, grade: 7.0, risk: 0.50 }, w2: { logins: 6, time: 3.5, posts: 0, grade: 6.8, risk: 0.60 }, w3: { logins: 5, time: 3, posts: 1, grade: 6.5, risk: 0.68 }, w4: { logins: 4, time: 2.5, posts: 0, grade: 6.0, risk: 0.72 }, w5: { logins: 5, time: 2.8, posts: 1, grade: 6.1, risk: 0.71 } } }
+    ];
+
+    let currentSortOrder = 'desc';
+    let charts = {};
+
+    function getRiskCategory(score) {
+        if (score <= 0.4) return 'Bajo';
+        if (score <= 0.7) return 'Medio';
+        return 'Alto';
+    }
+
+    function getRiskColor(score) {
+        const category = getRiskCategory(score);
+        if (category === 'Bajo') return 'bg-green-100 text-green-800';
+        if (category === 'Medio') return 'bg-yellow-100 text-yellow-800';
+        return 'bg-red-100 text-red-800';
+    }
+
+    function calculateAverages() {
+        const totalStudents = studentData.length;
+        if(totalStudents === 0) return { logins: 0, time: 0, posts: 0, grade: 0, engagement: 0 };
+        
+        const sums = studentData.reduce((acc, student) => {
+            const lastWeek = student.weeklyData.w5;
+            acc.logins += lastWeek.logins || 0;
+            acc.time += lastWeek.time || 0;
+            acc.posts += lastWeek.posts || 0;
+            acc.grade += lastWeek.grade || 0;
+            return acc;
+        }, { logins: 0, time: 0, posts: 0, grade: 0 });
+        
+        const totalEngagement = studentData.reduce((acc, s) => acc + (1 - s.riskScore), 0);
+
+        return {
+            logins: sums.logins / totalStudents,
+            time: sums.time / totalStudents,
+            posts: sums.posts / totalStudents,
+            grade: sums.grade / studentData.filter(s => s.weeklyData.w5.grade != null).length,
+            engagement: (totalEngagement / totalStudents) * 100,
+        };
+    }
+
+    const classAverages = calculateAverages();
+
+    function updateGlobalKPIs() {
+        document.getElementById('total-students').textContent = studentData.length;
+        const highRiskCount = studentData.filter(s => getRiskCategory(s.riskScore) === 'Alto').length;
+        document.getElementById('high-risk-students').textContent = highRiskCount;
+        document.getElementById('avg-engagement').textContent = `${classAverages.engagement.toFixed(0)}%`;
+        document.getElementById('avg-grade').textContent = classAverages.grade.toFixed(1);
+    }
+    
+    function renderStudentList() {
+        const listElement = document.getElementById('student-list');
+        listElement.innerHTML = '';
+        const sortedData = [...studentData].sort((a, b) => {
+            return currentSortOrder === 'asc' ? a.riskScore - b.riskScore : b.riskScore - a.riskScore;
+        });
+
+        sortedData.forEach(student => {
+            const item = document.createElement('div');
+            item.className = 'student-list-item cursor-pointer p-3 rounded-lg flex justify-between items-center transition-colors duration-200';
+            item.dataset.studentId = student.id;
+            
+            item.innerHTML = `
+                <div>
+                    <p class="font-semibold">${student.name}</p>
+                    <p class="text-sm text-stone-500">ID: ${student.id}</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold">${student.riskScore.toFixed(2)}</p>
+                    <span class="text-xs px-2 py-1 rounded-full ${getRiskColor(student.riskScore)}">${getRiskCategory(student.riskScore)}</span>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                 document.querySelectorAll('.student-list-item').forEach(el => el.classList.remove('selected'));
+                 item.classList.add('selected');
+                 renderStudentDetail(student.id);
+            });
+            listElement.appendChild(item);
+        });
+    }
+
+    function destroyCharts() {
+        Object.values(charts).forEach(chart => {
+            if (chart) chart.destroy();
+        });
+        charts = {};
+    }
+
+    function renderStudentDetail(studentId) {
+        destroyCharts();
+        const student = studentData.find(s => s.id === studentId);
+        if (!student) return;
+
+        const detailView = document.getElementById('student-detail-view');
+        const riskCategory = getRiskCategory(student.riskScore);
+        const analysisText = getAnalysisText(student, riskCategory);
+        
+        detailView.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <h3 class="text-2xl font-bold">${student.name}</h3>
+                    <p class="text-stone-500">ID: ${student.id}</p>
+                </div>
+                <div class="bg-stone-100 p-4 rounded-lg text-center">
+                    <p class="text-sm font-semibold text-stone-500">Puntaje de Riesgo</p>
+                    <p class="text-4xl font-bold ${getRiskColor(student.riskScore).split(' ')[1]}">${student.riskScore.toFixed(2)}</p>
+                    <p class="text-sm font-semibold ${getRiskColor(student.riskScore).split(' ')[1]}">${riskCategory}</p>
+                </div>
+            </div>
+             <div class="bg-stone-50 p-4 rounded-lg">
+                <h4 class="font-bold mb-2">Análisis y Sugerencia de Intervención</h4>
+                <p class="text-stone-700 text-sm">${analysisText}</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <div class="bg-stone-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-center mb-2">Evolución Semanal del Compromiso</h4>
+                    <div class="chart-container h-64 md:h-80">
+                        <canvas id="engagement-trend-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-stone-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-center mb-2">Perfil de Actividad vs. Promedio</h4>
+                    <div class="chart-container h-64 md:h-80">
+                        <canvas id="activity-profile-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        renderEngagementTrendChart(student);
+        renderActivityProfileChart(student);
+    }
+    
+    function getAnalysisText(student, riskCategory) {
+        const lastWeek = student.weeklyData.w5;
+        if (riskCategory === 'Alto') {
+            return `El puntaje de riesgo de ${student.name} es alarmantemente alto. Se observa una caída drástica en sus inicios de sesión (${lastWeek.logins}) y nula participación social (${lastWeek.posts}). No entregó las últimas tareas. **Sugerencia:** Contactar inmediatamente para una tutoría individual y personalizada. Investigar posibles barreras externas y ofrecer flexibilidad o apoyo psicopedagógico si es necesario.`;
+        }
+        if (riskCategory === 'Medio') {
+            return `${student.name} muestra un patrón de compromiso inconsistente. Aunque entrega las tareas, sus calificaciones (${lastWeek.grade || 'N/A'}) están por debajo del promedio y su interacción en la plataforma es baja. **Sugerencia:** Enviar un correo personalizado ofreciendo ayuda con los temas de la semana y recomendando recursos adicionales. Invitar a participar en el próximo foro de discusión.`;
+        }
+        return `${student.name} demuestra un excelente nivel de compromiso y rendimiento. Sus métricas están consistentemente por encima del promedio de la clase. **Sugerencia:** Enviar un mensaje de retroalimentación positiva para reforzar su buen trabajo. Considerar invitarle a ser mentor de un compañero con dificultades.`;
+    }
+
+    function renderEngagementTrendChart(student) {
+        const ctx = document.getElementById('engagement-trend-chart').getContext('2d');
+        const labels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'];
+        const weeklyData = Object.values(student.weeklyData);
+
+        charts.engagement = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Puntaje de Riesgo',
+                        data: weeklyData.map(w => w.risk),
+                        borderColor: '#DC2626',
+                        backgroundColor: '#FEE2E2',
+                        yAxisID: 'y1',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Inicios de Sesión',
+                        data: weeklyData.map(w => w.logins),
+                        borderColor: '#0891B2',
+                        backgroundColor: '#CFFAFE',
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Publicaciones Foro',
+                        data: weeklyData.map(w => w.posts),
+                        borderColor: '#16A34A',
+                        backgroundColor: '#DCFCE7',
+                        yAxisID: 'y',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Cantidad' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Riesgo' },
+                        min: 0,
+                        max: 1,
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            }
+        });
+    }
+
+    function renderActivityProfileChart(student) {
+        const ctx = document.getElementById('activity-profile-chart').getContext('2d');
+        const lastWeek = student.weeklyData.w5;
+        
+        charts.activity = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['Inicios de Sesión', 'Tiempo (hrs)', 'Publicaciones', 'Calificación'],
+                datasets: [
+                    {
+                        label: student.name,
+                        data: [
+                            lastWeek.logins,
+                            lastWeek.time,
+                            lastWeek.posts,
+                            lastWeek.grade
+                        ],
+                        backgroundColor: 'rgba(8, 145, 178, 0.2)',
+                        borderColor: 'rgba(8, 145, 178, 1)',
+                        pointBackgroundColor: 'rgba(8, 145, 178, 1)',
+                    },
+                    {
+                        label: 'Promedio de Clase',
+                        data: [
+                            classAverages.logins,
+                            classAverages.time,
+                            classAverages.posts,
+                            classAverages.grade
+                        ],
+                        backgroundColor: 'rgba(107, 114, 128, 0.2)',
+                        borderColor: 'rgba(107, 114, 128, 1)',
+                        pointBackgroundColor: 'rgba(107, 114, 128, 1)',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { display: false },
+                        suggestedMin: 0,
+                        ticks: { backdropColor: 'transparent' }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    }
+
+    function init() {
+        updateGlobalKPIs();
+        renderStudentList();
+        document.getElementById('sort-asc').addEventListener('click', () => {
+            currentSortOrder = 'asc';
+            renderStudentList();
+        });
+        document.getElementById('sort-desc').addEventListener('click', () => {
+            currentSortOrder = 'desc';
+            renderStudentList();
+        });
+    }
+
+    init();
+});
+</script>
+
+</body>
+</html>
